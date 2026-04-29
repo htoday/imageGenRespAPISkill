@@ -36,6 +36,7 @@ When reporting discovery results to the user, mask API keys, for example `sk-a..
 ## When To Use
 
 - The user wants image generation through `POST /responses`.
+- The user wants to edit or extend an existing local image through Responses image generation.
 - The user provides or wants to provide a custom OpenAI-compatible gateway.
 - The user wants automatic discovery from `.codex` and environment variables.
 - The normal Images API path (`/images/generations`) fails, but Responses image tools may work.
@@ -97,6 +98,19 @@ python scripts/stream_responses_image.py \
 
 `--base-url` and `--api-key` are required script arguments. The AI should discover or ask for values first, then pass them explicitly.
 
+For editing an existing image, pass one or more local images:
+
+```bash
+python scripts/stream_responses_image.py \
+  --base-url "<resolved-base-url>" \
+  --api-key "<resolved-api-key>" \
+  --input-image source.png \
+  --prompt "Edit the image by adding two characters in the background while preserving the original composition." \
+  --out output/edited.png
+```
+
+When `--input-image` is present and `--tool-action` is omitted, the script sends `action: "edit"` to the image generation tool. Use `--tool-action auto` or `--tool-action generate` only when the user explicitly wants that behavior.
+
 For detailed CLI examples and troubleshooting, read `references/usage.md`.
 
 ## Prompting
@@ -109,6 +123,8 @@ Use concrete visual prompts. Include:
 - style and medium
 - lighting and mood
 - constraints and avoid list
+
+For edits, repeat invariants clearly: what must remain unchanged, what should be added or changed, and where the new elements should appear. Keep edits targeted to reduce drift.
 
 For copyrighted or game-inspired fan-art style requests, describe the concrete scene and characters the user requested. Avoid adding unrelated characters or logos.
 

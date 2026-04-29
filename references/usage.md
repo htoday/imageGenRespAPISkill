@@ -49,6 +49,21 @@ python scripts/stream_responses_image.py \
   --out output/imagegen/mondstadt.png
 ```
 
+## Edit Existing Images
+
+Use `--input-image` to provide one or more local image files. The script converts each input image to a base64 data URL inside the Responses request.
+
+```bash
+python scripts/stream_responses_image.py \
+  --base-url "https://codex.miyuzu.top/v1" \
+  --api-key "sk-..." \
+  --input-image source.png \
+  --prompt "Edit the image by adding two characters near the fountain while preserving the original lighting, architecture, and main characters." \
+  --out output/imagegen/edited.png
+```
+
+When `--input-image` is present, the script defaults the image generation tool to `action: "edit"`. Override with `--tool-action auto` or `--tool-action generate` only when needed.
+
 ## Optional Request JSON
 
 Use `--save-request-json` to inspect the request without exposing the key:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import mimetypes
 from pathlib import Path
 import socket
 import sys
@@ -56,17 +57,41 @@ def _read_prompt(args: argparse.Namespace) -> str:
     raise SystemExit("Provide --prompt, --prompt-file, or prompt text on stdin.")
 
 
+def _image_data_url(path: str) -> str:
+    image_path = Path(path)
+    if not image_path.exists():
+        raise SystemExit(f"Input image not found: {image_path}")
+    mime_type, _ = mimetypes.guess_type(str(image_path))
+    if not mime_type or not mime_type.startswith("image/"):
+        raise SystemExit(f"Input image must be a supported image file: {image_path}")
+    encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _build_input(args: argparse.Namespace, prompt: str):
+    if not args.input_image:
+        return prompt
+
+    content = [{"type": "input_text", "text": prompt}]
+    for image_path in args.input_image:
+        content.append({"type": "input_image", "image_url": _image_data_url(image_path)})
+    return [{"role": "user", "content": content}]
+
+
 def _build_payload(args: argparse.Namespace, prompt: str) -> dict:
     tool: dict[str, object] = {
         "type": "image_generation",
         "model": args.image_model,
     }
-    if args.tool_action:
-        tool["action"] = args.tool_action
+    action = args.tool_action
+    if not action and args.input_image:
+        action = "edit"
+    if action:
+        tool["action"] = action
 
     return {
         "model": args.model,
-        "input": prompt,
+        "input": _build_input(args, prompt),
         "stream": True,
         "tools": [tool],
     }
@@ -217,6 +242,7 @@ def main() -> int:
     parser.add_argument("--model", default="gpt-5.5", help="Outer Responses model.")
     parser.add_argument("--image-model", default="gpt-image-2", help="image_generation tool model.")
     parser.add_argument("--tool-action", choices=["generate", "edit", "auto"], help="Optional image_generation action.")
+    parser.add_argument("--input-image", action="append", help="Local image path to provide as an input image. Repeat for multiple images.")
     parser.add_argument("--prompt")
     parser.add_argument("--prompt-file")
     parser.add_argument("--out", required=True, help="Output image path.")
