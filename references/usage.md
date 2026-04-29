@@ -1,46 +1,25 @@
 # Usage Reference
 
-This skill can run outside the Codex runtime while still reusing local Codex configuration when present. It reads `$CODEX_HOME/config.toml` or `~/.codex/config.toml`, then `$CODEX_HOME/auth.json` or `~/.codex/auth.json`.
+This skill runs outside the Codex runtime and requires explicit connection details for every request. It does not read `$CODEX_HOME/config.toml`, `~/.codex/config.toml`, `$CODEX_HOME/auth.json`, `~/.codex/auth.json`, or environment-default API variables.
 
-Connection precedence:
+Required request values:
 
-1. Explicit `--base-url` and `--api-key` CLI values.
-2. Codex config/auth files.
-3. `OPENAI_BASE_URL` / `OPENAI_API_BASE` and `OPENAI_API_KEY`.
-4. Interactive prompts.
+- `--base-url`
+- `--api-key`
 
 ## Minimal Example
 
 ```bash
 python scripts/stream_responses_image.py \
+  --base-url "https://codex.miyuzu.top/v1" \
+  --api-key "sk-..." \
   --model "gpt-5.5" \
   --image-model "gpt-image-2" \
   --prompt "Generate a square warm editorial illustration of a cozy desk scene with a mug and notebook. No text, no logo, no watermark." \
   --out output/imagegen/desk.png
 ```
 
-If Codex config/auth are available, no base URL or key prompt is needed.
-
-## Explicit Gateway Override
-
-```bash
-export OPENAI_API_KEY="sk-..."
-python scripts/stream_responses_image.py \
-  --base-url "https://codex.miyuzu.top/v1" \
-  --prompt "Generate a square warm editorial illustration of a cozy desk scene with a mug and notebook. No text, no logo, no watermark." \
-  --out output/imagegen/desk.png
-```
-
-## Interactive Key Prompt
-
-If Codex auth and `OPENAI_API_KEY` are unavailable, the script asks for the key with a hidden terminal prompt:
-
-```bash
-python scripts/stream_responses_image.py \
-  --base-url "https://codex.miyuzu.top/v1" \
-  --prompt-file prompt.txt \
-  --out output/imagegen/result.png
-```
+Avoid pasting real keys into shared shell history. For local private use, explicit CLI arguments are required by this skill.
 
 ## Prompt File
 
@@ -48,6 +27,8 @@ Use `--prompt-file` for long prompts:
 
 ```bash
 python scripts/stream_responses_image.py \
+  --base-url "https://codex.miyuzu.top/v1" \
+  --api-key "sk-..." \
   --prompt-file prompt.txt \
   --out output/imagegen/mondstadt.png
 ```
@@ -58,6 +39,8 @@ Use `--save-request-json` to inspect the request without exposing the key:
 
 ```bash
 python scripts/stream_responses_image.py \
+  --base-url "https://codex.miyuzu.top/v1" \
+  --api-key "sk-..." \
   --prompt-file prompt.txt \
   --out output/imagegen/result.png \
   --save-request-json tmp/request.json

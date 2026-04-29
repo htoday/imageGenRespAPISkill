@@ -1,31 +1,28 @@
 ---
 name: "codex-responses-imagegen"
-description: "Generate images through an OpenAI-compatible Responses API using streamed image_generation tool calls. Use when image generation should prefer local Codex config/auth, then fall back to explicit base_url and API key prompts only when local values are unavailable."
+description: "Generate images through an OpenAI-compatible Responses API using streamed image_generation tool calls. Use when each image generation request must explicitly pass base_url and API key instead of reading Codex config, auth storage, or environment defaults."
 ---
 
 # Codex Responses Image Generation
 
-Use this skill to generate raster images through a standalone OpenAI-compatible Responses API flow. It does not rely on Codex built-in `image_gen`, but it should prefer local Codex config/auth when available.
+Use this skill to generate raster images through a standalone OpenAI-compatible Responses API flow. It does not rely on Codex built-in `image_gen`, Codex auth storage, Codex config, or environment-default credentials.
 
 ## Core Rule
 
-Before asking the user for connection details, try local Codex values first:
+Every live request must explicitly provide:
 
-1. Read `$CODEX_HOME/config.toml`, or `~/.codex/config.toml` if `CODEX_HOME` is unset.
-2. Use the selected `model_provider`'s `base_url` from `[model_providers.<name>]`.
-3. If the selected provider is unavailable, try `[model_providers.OpenAI]`, `[model_providers.openai]`, then `[model_providers.cch]`.
-4. Read `$CODEX_HOME/auth.json`, or `~/.codex/auth.json` if `CODEX_HOME` is unset.
-5. Use an API key from `OPENAI_API_KEY`, `api_key`, `token`, or `access_token` fields when present.
-6. If local Codex values are missing, fall back to `OPENAI_BASE_URL` / `OPENAI_API_BASE` and `OPENAI_API_KEY`.
-7. Only if values are still missing, ask the user for `base_url` and API key.
+- `--base-url`, for example `https://example.com/v1`
+- `--api-key`
 
-Do not print the API key. Do not write it into files. If a key must be requested, use an interactive hidden prompt.
+Do not read API keys from Codex auth storage. Do not read `base_url` from Codex config. Do not fall back to `OPENAI_API_KEY`, `OPENAI_BASE_URL`, or `OPENAI_API_BASE`. If the user has not provided these values for the current request, ask for them before running the script.
+
+Do not print the API key. Do not write it into files. Do not save it in request JSON.
 
 ## When To Use
 
 - The user wants image generation through `POST /responses`.
 - The user provides or wants to provide a custom OpenAI-compatible gateway.
-- The user wants to use the local Codex provider settings without manually copying the key.
+- The user wants explicit per-request gateway and credential control.
 - The normal Images API path (`/images/generations`) fails, but Responses image tools may work.
 - The task needs streamed SSE handling and base64 result decoding.
 
@@ -77,11 +74,13 @@ Use the bundled script:
 
 ```bash
 python scripts/stream_responses_image.py \
+  --base-url "https://example.com/v1" \
+  --api-key "<api-key>" \
   --prompt "Generate a warm fantasy city illustration..." \
   --out output/image.png
 ```
 
-`--base-url` and `--api-key` are optional overrides. If omitted, the script reads local Codex config/auth first, then environment variables, then prompts interactively only when needed.
+`--base-url` and `--api-key` are required for every run. The script intentionally does not auto-read Codex config/auth or environment variables.
 
 For detailed CLI examples and troubleshooting, read `references/usage.md`.
 

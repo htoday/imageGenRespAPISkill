@@ -9,19 +9,12 @@ from __future__ import annotations
 
 import argparse
 import base64
-import getpass
 import json
-import os
 from pathlib import Path
 import socket
 import sys
-import tomllib
 import urllib.error
 import urllib.request
-
-
-def _codex_home() -> Path:
-    return Path(os.getenv("CODEX_HOME", Path.home() / ".codex")).expanduser()
 
 
 def _normalize_base_url(value: str) -> str:
@@ -29,55 +22,6 @@ def _normalize_base_url(value: str) -> str:
     if not value:
         raise SystemExit("base_url is required")
     return value.rstrip("/")
-
-
-def _read_codex_config() -> dict:
-    path = _codex_home() / "config.toml"
-    if not path.exists():
-        return {}
-    try:
-        with path.open("rb") as handle:
-            return tomllib.load(handle)
-    except tomllib.TOMLDecodeError as exc:
-        print(f"Warning: could not parse {path}: {exc}", file=sys.stderr)
-        return {}
-
-
-def _read_codex_auth() -> dict:
-    path = _codex_home() / "auth.json"
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        print(f"Warning: could not parse {path}: {exc}", file=sys.stderr)
-        return {}
-
-
-def _get_base_url(args: argparse.Namespace, codex_config: dict) -> str:
-    if args.base_url:
-        return _normalize_base_url(args.base_url)
-
-    provider_name = codex_config.get("model_provider")
-    providers = codex_config.get("model_providers") or {}
-    candidates = []
-    if provider_name:
-        candidates.append(provider_name)
-    candidates.extend(["OpenAI", "openai", "cch"])
-
-    for name in candidates:
-        provider = providers.get(name)
-        if isinstance(provider, dict) and provider.get("base_url"):
-            return _normalize_base_url(str(provider["base_url"]))
-
-    env_url = os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_API_BASE")
-    if env_url:
-        return _normalize_base_url(env_url)
-
-    entered = input("Base URL: ").strip()
-    if not entered:
-        raise SystemExit("base_url is required.")
-    return _normalize_base_url(entered)
 
 
 def _read_prompt(args: argparse.Namespace) -> str:
@@ -92,31 +36,6 @@ def _read_prompt(args: argparse.Namespace) -> str:
         if text.strip():
             return text
     raise SystemExit("Provide --prompt, --prompt-file, or prompt text on stdin.")
-
-
-def _get_api_key(args: argparse.Namespace, codex_auth: dict) -> str:
-    if args.api_key:
-        return args.api_key
-
-    for key_name in ("OPENAI_API_KEY", "api_key", "token", "access_token"):
-        value = codex_auth.get(key_name)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-
-    tokens = codex_auth.get("tokens")
-    if isinstance(tokens, dict):
-        for key_name in ("OPENAI_API_KEY", "api_key", "token", "access_token"):
-            value = tokens.get(key_name)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-
-    env_key = os.getenv("OPENAI_API_KEY")
-    if env_key:
-        return env_key
-    key = getpass.getpass("API key: ").strip()
-    if not key:
-        raise SystemExit("API key is required.")
-    return key
 
 
 def _build_payload(args: argparse.Namespace, prompt: str) -> dict:
@@ -275,8 +194,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate an image through streamed Responses image_generation calls."
     )
-    parser.add_argument("--base-url", help="OpenAI-compatible base URL. Defaults to Codex config, then OPENAI_BASE_URL, then prompt.")
-    parser.add_argument("--api-key", help="API key. Defaults to Codex auth, then OPENAI_API_KEY, then hidden prompt.")
+    parser.add_argument("--base-url", required=True, help="OpenAI-compatible base URL, e.g. https://example.com/v1.")
+    parser.add_argument("--api-key", required=True, help="API key. Pass explicitly for every request; it is never written to files.")
     parser.add_argument("--model", default="gpt-5.5", help="Outer Responses model.")
     parser.add_argument("--image-model", default="gpt-image-2", help="image_generation tool model.")
     parser.add_argument("--tool-action", choices=["generate", "edit", "auto"], help="Optional image_generation action.")
@@ -287,15 +206,12 @@ def main() -> int:
     parser.add_argument("--save-request-json", help="Write request JSON without secrets.")
     args = parser.parse_args()
 
-    codex_config = _read_codex_config()
-    codex_auth = _read_codex_auth()
-    base_url = _get_base_url(args, codex_config)
+    base_url = _normalize_base_url(args.base_url)
     prompt = _read_prompt(args)
-    api_key = _get_api_key(args, codex_auth)
     payload = _build_payload(args, prompt)
     _save_request_json(args.save_request_json, payload)
     print(json.dumps({"base_url": base_url, "model": args.model, "image_model": args.image_model}, ensure_ascii=False), flush=True)
-    return _post_stream(args, base_url, api_key, payload)
+    return _post_stream(args, base_url, args.api_key, payload)
 
 
 if __name__ == "__main__":
