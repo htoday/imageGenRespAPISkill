@@ -1,11 +1,17 @@
 # Usage Reference
 
-This skill runs outside the Codex runtime and requires explicit connection details for every request. It does not read `$CODEX_HOME/config.toml`, `~/.codex/config.toml`, `$CODEX_HOME/auth.json`, `~/.codex/auth.json`, or environment-default API variables.
+This skill runs outside the Codex built-in image tool. The script requires explicit `--base-url` and `--api-key`; the AI using the skill should discover those values before invoking the script.
 
-Required request values:
+AI-side connection discovery:
 
-- `--base-url`
-- `--api-key`
+1. Use values explicitly supplied by the user in the current request.
+2. Read `$CODEX_HOME/config.toml` or `~/.codex/config.toml` provider `base_url` values.
+3. Read `$CODEX_HOME/auth.json` or `~/.codex/auth.json` API key values.
+4. Check `OPENAI_BASE_URL`, `OPENAI_API_BASE`, and `OPENAI_API_KEY`.
+
+If none are found, ask the user for the missing value. If multiple are found, ask the user which one to use. If exactly one value is found for each, print masked selected values before invoking the script.
+
+The discovery step belongs to the AI workflow, not the Python script. The script remains deterministic and only uses the explicit values passed on the command line.
 
 ## Minimal Example
 
@@ -19,7 +25,17 @@ python scripts/stream_responses_image.py \
   --out output/imagegen/desk.png
 ```
 
-Avoid pasting real keys into shared shell history. For local private use, explicit CLI arguments are required by this skill.
+## Explicit Override
+
+The script always receives explicit values. The AI may have discovered them from `.codex` or environment variables before constructing the command.
+
+```bash
+python scripts/stream_responses_image.py \
+  --base-url "https://codex.miyuzu.top/v1" \
+  --api-key "sk-..." \
+  --prompt "Generate a square warm editorial illustration of a cozy desk scene with a mug and notebook. No text, no logo, no watermark." \
+  --out output/imagegen/desk.png
+```
 
 ## Prompt File
 
@@ -102,4 +118,4 @@ Common cases:
 
 ## Security
 
-Do not commit API keys. Prefer `OPENAI_API_KEY` or the hidden prompt. Avoid shell history exposure by not passing `--api-key` on shared machines.
+Do not commit API keys. The script prints only masked API keys and never writes keys into request JSON. Avoid shell history exposure by relying on `.codex`/environment discovery or interactive prompt instead of `--api-key` on shared machines.

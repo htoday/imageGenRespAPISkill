@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import socket
 import sys
+from urllib.parse import urlsplit, urlunsplit
 import urllib.error
 import urllib.request
 
@@ -22,6 +23,23 @@ def _normalize_base_url(value: str) -> str:
     if not value:
         raise SystemExit("base_url is required")
     return value.rstrip("/")
+
+
+def _mask_secret(value: str) -> str:
+    if len(value) <= 8:
+        return "<redacted>"
+    return f"{value[:4]}...{value[-4:]}"
+
+
+def _mask_base_url(value: str) -> str:
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return "<invalid-url>"
+    netloc = parts.hostname or ""
+    if parts.port:
+        netloc = f"{netloc}:{parts.port}"
+    return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
 
 
 def _read_prompt(args: argparse.Namespace) -> str:
@@ -194,8 +212,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate an image through streamed Responses image_generation calls."
     )
-    parser.add_argument("--base-url", required=True, help="OpenAI-compatible base URL, e.g. https://example.com/v1.")
-    parser.add_argument("--api-key", required=True, help="API key. Pass explicitly for every request; it is never written to files.")
+    parser.add_argument("--base-url", required=True, help="OpenAI-compatible base URL. Must be passed explicitly.")
+    parser.add_argument("--api-key", required=True, help="API key. Must be passed explicitly; it is never written to files.")
     parser.add_argument("--model", default="gpt-5.5", help="Outer Responses model.")
     parser.add_argument("--image-model", default="gpt-image-2", help="image_generation tool model.")
     parser.add_argument("--tool-action", choices=["generate", "edit", "auto"], help="Optional image_generation action.")
@@ -210,7 +228,18 @@ def main() -> int:
     prompt = _read_prompt(args)
     payload = _build_payload(args, prompt)
     _save_request_json(args.save_request_json, payload)
-    print(json.dumps({"base_url": base_url, "model": args.model, "image_model": args.image_model}, ensure_ascii=False), flush=True)
+    print(
+        json.dumps(
+            {
+                "base_url": _mask_base_url(base_url),
+                "api_key": _mask_secret(args.api_key),
+                "model": args.model,
+                "image_model": args.image_model,
+            },
+            ensure_ascii=False,
+        ),
+        flush=True,
+    )
     return _post_stream(args, base_url, args.api_key, payload)
 
 

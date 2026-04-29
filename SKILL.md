@@ -1,28 +1,43 @@
 ---
 name: "codex-responses-imagegen"
-description: "Generate images through an OpenAI-compatible Responses API using streamed image_generation tool calls. Use when each image generation request must explicitly pass base_url and API key instead of reading Codex config, auth storage, or environment defaults."
+description: "Generate images through an OpenAI-compatible Responses API using streamed image_generation tool calls. Use when the AI should discover usable base_url and API key from .codex and environment variables, ask the user if none or multiple are found, then call the script with explicit parameters."
 ---
 
 # Codex Responses Image Generation
 
-Use this skill to generate raster images through a standalone OpenAI-compatible Responses API flow. It does not rely on Codex built-in `image_gen`, Codex auth storage, Codex config, or environment-default credentials.
+Use this skill to generate raster images through a standalone OpenAI-compatible Responses API flow. The script itself only accepts explicit credentials, while the AI using this skill is responsible for discovering or asking for them first.
 
 ## Core Rule
 
-Every live request must explicitly provide:
+Before running the script, the AI must resolve connection details in this order:
 
-- `--base-url`, for example `https://example.com/v1`
-- `--api-key`
+1. Check values the user explicitly supplied in the current request.
+2. Read `$CODEX_HOME/config.toml` or `~/.codex/config.toml` for model provider `base_url` values.
+3. Read `$CODEX_HOME/auth.json` or `~/.codex/auth.json` for API key values.
+4. Check `OPENAI_BASE_URL`, `OPENAI_API_BASE`, and `OPENAI_API_KEY` environment variables.
 
-Do not read API keys from Codex auth storage. Do not read `base_url` from Codex config. Do not fall back to `OPENAI_API_KEY`, `OPENAI_BASE_URL`, or `OPENAI_API_BASE`. If the user has not provided these values for the current request, ask for them before running the script.
+Selection rules:
 
-Do not print the API key. Do not write it into files. Do not save it in request JSON.
+- If no usable `base_url` or API key is found, ask the user for the missing value.
+- If multiple usable `base_url` or API key candidates are found, ask the user which one to use.
+- If exactly one candidate is found for each value, print the selected base URL and API key in masked form before calling the script.
+- Always call `scripts/stream_responses_image.py` with explicit `--base-url` and `--api-key`.
+
+Never print a raw API key. Never write the API key into files. Do not save it in request JSON.
+
+AI-side discovery can use shell or a small one-off local script to inspect:
+
+- model provider `base_url` entries in `.codex/config.toml`
+- API key fields in `.codex/auth.json`
+- `OPENAI_BASE_URL`, `OPENAI_API_BASE`, and `OPENAI_API_KEY`
+
+When reporting discovery results to the user, mask API keys, for example `sk-a...1234`.
 
 ## When To Use
 
 - The user wants image generation through `POST /responses`.
 - The user provides or wants to provide a custom OpenAI-compatible gateway.
-- The user wants explicit per-request gateway and credential control.
+- The user wants automatic discovery from `.codex` and environment variables.
 - The normal Images API path (`/images/generations`) fails, but Responses image tools may work.
 - The task needs streamed SSE handling and base64 result decoding.
 
@@ -74,13 +89,13 @@ Use the bundled script:
 
 ```bash
 python scripts/stream_responses_image.py \
-  --base-url "https://example.com/v1" \
-  --api-key "<api-key>" \
+  --base-url "<resolved-base-url>" \
+  --api-key "<resolved-api-key>" \
   --prompt "Generate a warm fantasy city illustration..." \
   --out output/image.png
 ```
 
-`--base-url` and `--api-key` are required for every run. The script intentionally does not auto-read Codex config/auth or environment variables.
+`--base-url` and `--api-key` are required script arguments. The AI should discover or ask for values first, then pass them explicitly.
 
 For detailed CLI examples and troubleshooting, read `references/usage.md`.
 
